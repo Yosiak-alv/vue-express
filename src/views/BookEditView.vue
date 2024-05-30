@@ -1,8 +1,9 @@
 <script setup>
 import { useRouter, RouterLink } from 'vue-router';
-import { reactive , ref, watchEffect} from 'vue';
-import { watch , computed } from 'vue';
-import { editBook, getBook } from '@/services/BookServices.js';
+import { reactive , ref, onMounted} from 'vue';
+import { useBookStore } from '@/stores/bookStore';
+import { storeToRefs } from 'pinia';
+
 import { useFlashMessageStore } from '@/stores/flashMessageStore.js';
 
 import intus from "intus";
@@ -12,23 +13,24 @@ const props = defineProps({
     id: String
 });
 
-const { data, isLoading: isFetching, isError, error } = getBook(props.id);
-const form = reactive({
-    title: '',
-    author: '',
-    year: '',
-});
-watchEffect(() => {
-    if (data.value) {
-        form.title = data.value.title;
-        form.author = data.value.author;
-        form.year = data.value.year;
-    }
+const { book, loading, error } = storeToRefs(useBookStore());
+const { updateBook, fetchBook } = useBookStore();
+
+onMounted(async () => {
+    await fetchBook(props.id);
 });
 
-const { isError: isMutateError, error: mutateError, isSuccess, mutate } = editBook(props.id);
+const form = reactive({
+    title: book.value?.title,
+    author: book.value?.author,
+    year: book.value?.year
+});
+
+const router = useRouter();
+const flashMessageStore = useFlashMessageStore();
+
 const errors = ref({});
-const onUpdate  = () => {
+const onUpdate  = async () => {
     let validation = intus.validate(form, {
         title: [isRequired(), isMin(3), isMax(50)],
         author: [isRequired(), isMin(3), isMax(50)],
@@ -38,36 +40,25 @@ const onUpdate  = () => {
     errors.value = validation.errors();
 
     if(validation.passes()){
-        mutate(form);
+        await updateBook(props.id, form);
+        if (!error.value) {
+            flashMessageStore.setFlashMessage('Book updated successfully');
+            router.push({name:'home'});
+        }
     }
 }
-const router = useRouter();
-const flashMessageStore = useFlashMessageStore();
-watch(isSuccess, (value) => {
-    if (value) {
-        flashMessageStore.setFlashMessage('Book Created Successfully!');
-        router.push({ name: 'home'});
-    }
-});
-
 </script>
 
 <template>
     <div class="container mt-4">
-        <!-- error messages --> 
-        <div v-if="isError || isMutateError" class="alert alert-danger">
-            <strong>Whoops!</strong> {{ error?.message || mutateError?.message }}<br><br>
-            <span>{{ error?.response?.data || mutateError?.response?.data }}</span>
-        </div>
-
         <div class="row mt-4">
-            <div v-if="!isFetching"  class="col-md-6 offset-md-3 p-4 bg-light border rounded-3">
+            <div class="col-md-6 offset-md-3 p-4 bg-light border rounded-3">
                 <header class="mt-4">  
                     <h3> Edit Book</h3>
                     <p>
                         Edit a book with the following form.
                     </p>
-                    <router-link to="/" class="btn btn-primary">go home</router-link>
+                    <router-link :to="`/book/${props.id}`" class="btn btn-primary">go Back</router-link>
                 </header>
                 <form @submit.prevent="onUpdate" class="mt-4">
                     <div class="mb-3">
@@ -90,17 +81,21 @@ watch(isSuccess, (value) => {
                     </div>
 
                     <div class="col-12 text-right">
-                        <button  class="btn btn-primary mt-3 mb-3">
+                        <button  class="btn btn-primary mt-3 mb-3" :disabled="loading">
+                            <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                             Update Book
                         </button>
                     </div>
                 </form>
            </div> 
-           <div v-else class="text-center">
-                <div class="spinner-border text-primary " role="status">
-                    <span class="visually-hidden">Loading...</span>
+           <div v-if="error" class="alert alert-danger mt-3">
+                {{ error.message }} <br>
+                <div v-if="error.response?.data?.error">
+                    <span  v-for="error in error?.response?.data?.error" :key="error">
+                        {{ error }} <br>
+                    </span>
                 </div>
-            </div>      
+           </div>
         </div>
     </div>
 </template>

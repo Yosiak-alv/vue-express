@@ -8,20 +8,17 @@ export const useBookStore = defineStore('bookStore', {
         loading: false,
         error: null
     }),
-    getters:{
-        getPost: (state) => (id) => {
-            return state.books.find(book => book._id === id);
-        }
-    },
     actions: {
         async fetchBooks() {
             this.books = [];
             this.loading = true;
+            this.error = null; // Reset error state
             try {
                 const response = await axiosInstance.get('/books');
-                this.books = await response.json();
+                this.books = await response.data;
             } catch (error) {
                 this.error = error;
+                console.error(error);   
             } finally {
                 this.loading = false;
             }
@@ -29,9 +26,10 @@ export const useBookStore = defineStore('bookStore', {
         async fetchBook(id) {
             this.book = null;
             this.loading = true;
+            this.error = null; // Reset error state
             try {
                 const response = await axiosInstance.get(`/books/${id}`);
-                this.book = await response.json();
+                this.book = await response.data;
             } catch (error) {
                 this.error = error;
             } finally {
@@ -40,18 +38,25 @@ export const useBookStore = defineStore('bookStore', {
         },
         async storeBook(book) {
             this.loading = true;
+            this.error = null; // Reset error state
             try {
                 await axiosInstance.post('/books', book);
+                this.books.push(book);
             } catch (error) {
                 this.error = error;
             } finally {
                 this.loading = false;
             }
         },
-        async updateBook(book) {
+        async updateBook(id,book) {
             this.loading = true;
+            this.error = null; // Reset error state
             try {
-                await axiosInstance.put(`/books/${book._id}`, book);
+                await axiosInstance.patch(`/books/${id}`, book);
+                const index = this.books.findIndex(book => book._id === id);
+                if (index !== -1) {
+                    this.items[index] = response.data;
+                }
             } catch (error) {
                 this.error = error;
             } finally {
@@ -60,8 +65,10 @@ export const useBookStore = defineStore('bookStore', {
         },
         async deleteBook(id) {
             this.loading = true;
+            this.error = null; // Reset error state
             try {
                 await axiosInstance.delete(`/books/${id}`);
+                this.items = this.books.filter(book => book._id !== id);
             } catch (error) {
                 this.error = error;
             } finally {
